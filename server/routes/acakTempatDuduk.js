@@ -5,30 +5,27 @@ import authMiddleware from '../middleware/authMiddleware.js'
 const prisma = new PrismaClient()
 const router = express.Router()
 
-// Simpan/Update data kursi (opsional untuk persistensi)
-// Sementara kita buat logika acak murni di backend yang bisa dipanggil frontend
-
 router.post('/shuffle', authMiddleware, async (req, res) => {
   if (req.user.role !== 'guru') return res.status(403).json({ message: 'Akses ditolak.' })
 
   try {
-    const { kelas, rombel, mustPairIds } = req.body // mustPairIds: array ID siswa yang harus berpasangan
+    const { kelas, rombel, mustPairIds } = req.body
 
     const siswaList = await prisma.siswa.findMany({
       where: { kelas, rombel }
     })
 
-    if (siswaList.length === 0) return res.status(400).json({ message: 'Tidak ada siswa di kelas ini.' })
+    if (siswaList.length === 0) {
+      return res.status(400).json({ message: 'Tidak ada siswa di kelas ini.' })
+    }
+    if (siswaList.length > 32) {
+      return res.status(400).json({ message: 'Maksimal 32 siswa untuk 16 perangkat (2 siswa per perangkat).' })
+    }
 
-    // Logika pengacakan
-    let pool = [...siswaList]
-    let result = []
+    const MAX_DEVICES = 16
+    const devices = Array.from({ length: MAX_DEVICES }, (_, i) => ({ id: i + 1, students: [] }))
 
-    // 16 device, tiap device bisa 1 atau 2 siswa
-    // Layout: 4 baris, 2 kolom (kiri/kanan), tiap kolom punya 2 meja samping?
-    // Sesuai prompt: 16 device, 8 kiri, 8 kanan.
-
-    // Fungsi shuffle array
+    // Helper untuk acak array
     const shuffle = (array) => {
       for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -37,48 +34,57 @@ router.post('/shuffle', authMiddleware, async (req, res) => {
       return array
     }
 
-    shuffle(pool)
+    // 1) Pisahkan siswa berpasangan (mustPairIds) dan siswa biasa
+    const pairIdsSet = new Set(mustPairIds || [])
+    const pairsPool = shuffle(siswaList.filter(s => pairIdsSet.has(s.id)))
+    const singlesPool = shuffle(siswaList.filter(s => !pairIdsSet.has(s.id)))
 
-    // Tangani yang "Harus Berdampingan"
-    // Pisahkan siswa yang wajib berpasangan
-    let pairedSiswa = pool.filter(s => mustPairIds?.includes(s.id))
-    let normalSiswa = pool.filter(s => !mustPairIds?.includes(s.id))
-
-    let devices = Array.from({ length: 16 }, (_, i) => ({ id: i + 1, students: [] }))
-
-    // Jika total > 16, pasti ada yang berdua.
-    // Aturan dampingan: mereka HARUS berdua di 1 device.
-
-    let currentDeviceIdx = 0
-
-    // Isi pasangan dulu
-    while (pairedSiswa.length > 0 && currentDeviceIdx < 16) {
-      const s1 = pairedSiswa.pop()
-      const s2 = pairedSiswa.pop()
-      if (s1) devices[currentDeviceIdx].students.push(s1)
-      if (s2) devices[currentDeviceIdx].students.push(s2)
-      currentDeviceIdx++
+    // Gabungkan siswa berpasangan menjadi kelompok isi 2
+    const pairsGroup = []
+    for (let i = 0; i < pairsPool.length; i += 2) {
+      pairsGroup.push(pairsPool.slice(i, i + 2))
     }
 
-    // Isi sisa siswa normal
-    let combinedRemaining = [...pairedSiswa, ...normalSiswa] // pairedSiswa mungkin sisa 1 jika ganjil
-    shuffle(combinedRemaining)
+    // Acak urutan device agar penempatan awal acak (tidak selalu menumpuk di depan)
+    const deviceOrder = shuffle(Array.from({ length: MAX_DEVICES }, (_, i) => i))
+    let deviceCursor = 0
 
-    for (const student of combinedRemaining) {
-      // Cari device yang masih muat (maks 2)
-      // Jika <= 16 siswa, target 1 per device. Jika > 16, target 2 per device.
-      if (siswaList.length <= 16) {
-        if (currentDeviceIdx < 16) {
-          devices[currentDeviceIdx].students.push(student)
-          currentDeviceIdx++
-        }
-      } else {
-        // Cari yang masih kosong atau baru isi 1
-        let targetDevice = devices.find(d => d.students.length < (siswaList.length > 16 ? 2 : 1))
-        if (!targetDevice) targetDevice = devices.find(d => d.students.length < 2)
-        if (targetDevice) targetDevice.students.push(student)
+    // 2) Tempatkan pasangan (pairsGroup) terlebih dahulu
+    // Tiap pasangan mendapat 1 device penuh (isi 2 siswa)
+    for (const group of pairsGroup) {
+      if (deviceCursor >= MAX_DEVICES) break
+      const devIdx = deviceOrder[deviceCursor]
+      devices[devIdx].students = [...group]
+      deviceCursor++
+    }
+
+    // 3) Tempatkan siswa biasa (singlesPool) di device yang MASIH KOSONG terlebih dahulu
+    // Target: semua device terisi minimal 1 anak sebelum ada device isi 2 (selain pasangan)
+    const remainingSingles = [...singlesPool]
+
+    while (remainingSingles.length > 0 && deviceCursor < MAX_DEVICES) {
+      const devIdx = deviceOrder[deviceCursor]
+      const student = remainingSingles.shift()
+      devices[devIdx].students.push(student)
+      deviceCursor++
+    }
+
+    // 4) Jika singles masih tersisa (berarti total siswa > 16), sebar sisa singles tersebut
+    // secara acak ke device-device yang baru terisi 1 siswa (bukan device kosong atau isi 2)
+    if (remainingSingles.length > 0) {
+      // Cari device yang saat ini tepat berisi 1 siswa
+      const availableDevs = devices.filter(d => d.students.length === 1)
+      shuffle(availableDevs)
+
+      for (const student of remainingSingles) {
+        if (availableDevs.length === 0) break
+        const dev = availableDevs.shift()
+        dev.students.push(student)
       }
     }
+
+    // Kembalikan urutan device berdasarkan ID (1 sampai 16) untuk kebutuhan display grid
+    devices.sort((a, b) => a.id - b.id)
 
     res.json(devices)
   } catch (error) {

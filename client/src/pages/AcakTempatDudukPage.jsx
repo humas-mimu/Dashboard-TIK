@@ -11,9 +11,37 @@ const AcakTempatDudukPage = () => {
   const [devices, setDevices] = useState([])
   const [loading, setLoading] = useState(false)
 
-  // Contoh data statis untuk kelas/rombel. Di prod ambil dari API.
-  const kelasList = ['5', '6']
-  const rombelList = ['A', 'B']
+  const [kelasList, setKelasList] = useState([])
+  const [rombelList, setRombelList] = useState([])
+
+  useEffect(() => {
+    fetchKelasDinamis()
+  }, [])
+
+  const fetchKelasDinamis = async () => {
+    try {
+      const res = await apiRequest('/api/siswa/login-kelas')
+      const data = await res.json()
+      if (res.ok) setKelasList(data)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  useEffect(() => {
+    if (kelas) fetchRombelDinamis()
+  }, [kelas])
+
+  const fetchRombelDinamis = async () => {
+    try {
+      const res = await apiRequest(`/api/siswa/login-rombel?kelas=${encodeURIComponent(kelas)}`)
+      const data = await res.json()
+      if (res.ok) setRombelList(data)
+      setRombel('')
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
   useEffect(() => {
     if (kelas && rombel) fetchSiswa()
@@ -45,6 +73,8 @@ const AcakTempatDudukPage = () => {
         method: 'POST',
         body: JSON.stringify({ kelas, rombel, mustPairIds })
       })
+
+      // data sudah berupa layout 16 device dari backend
       const data = await res.json()
       // Pastikan data adalah array dan memiliki data
       if (Array.isArray(data)) {
