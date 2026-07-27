@@ -1,20 +1,66 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Search, Clock, FileText, Eye, Edit, Trash2 } from 'lucide-react'
+import { Plus, Search, Clock, FileText, Eye, Edit, Trash2, X, Image, File, Video, Link as LinkIcon, Upload } from 'lucide-react'
 import { apiRequest } from '../utils/api'
+
+const JENIS_OPTIONS = [
+  { value: 'text', label: 'Teks', icon: FileText },
+  { value: 'dokumen', label: 'Dokumen', icon: File },
+  { value: 'gambar', label: 'Gambar', icon: Image },
+  { value: 'video', label: 'Video', icon: Video },
+  { value: 'link', label: 'Link', icon: LinkIcon },
+]
+
+const EMPTY_FORM = {
+  judul: '', deskripsi: '', jenis: 'text', link: '', deadline: '',
+  status: 'draft', kelasTarget: [], rombelTarget: [], lampiran: [],
+}
 
 const TugasPage = () => {
   const user = JSON.parse(localStorage.getItem('user') || '{}')
   const isGuru = user.role === 'guru'
+  const fileRef = useRef(null)
 
   const [tugasList, setTugasList] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('semua')
   const [search, setSearch] = useState('')
+  const [showForm, setShowForm] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState({ ...EMPTY_FORM })
+  const [formError, setFormError] = useState('')
+  const [kelasList, setKelasList] = useState([])
+  const [rombelMap, setRombelMap] = useState({})
+
+  useEffect(() => { fetchTugas() }, [])
 
   useEffect(() => {
-    fetchTugas()
-  }, [])
+    if (!isGuru) return
+    const fetchKelas = async () => {
+      try {
+        const res = await apiRequest('/api/siswa/login-kelas')
+        const data = await res.json()
+        if (res.ok) setKelasList(data)
+      } catch (e) { console.error(e) }
+    }
+    fetchKelas()
+  }, [isGuru])
+
+  useEffect(() => {
+    if (form.kelasTarget.length === 0) return
+    const fetchRombels = async () => {
+      const map = {}
+      for (const kelas of form.kelasTarget) {
+        try {
+          const res = await apiRequest(`/api/siswa/login-rombel?kelas=${encodeURIComponent(kelas)}`)
+          const data = await res.json()
+          if (res.ok) map[kelas] = data
+        } catch (e) { console.error(e) }
+      }
+      setRombelMap(map)
+    }
+    fetchRombels()
+  }, [form.kelasTarget])
 
   const fetchTugas = async () => {
     setLoading(true)
@@ -24,38 +70,69 @@ const TugasPage = () => {
       const data = await res.json()
       if (!res.ok) throw new Error(data.message)
       setTugasList(Array.isArray(data) ? data : [])
-    } catch (e) {
-      console.error('Gagal memuat tugas:', e)
-    } finally {
-      setLoading(false)
-    }
+    } catch (e) { console.error('Gagal memuat tugas:', e) }
+    finally { setLoading(false) }
   }
 
   const filtered = useMemo(() => {
     let list = tugasList
-
     if (filter === 'aktif') list = list.filter(t => t.status === 'launch')
     else if (filter === 'berakhir') list = list.filter(t => t.deadline && new Date(t.deadline) < new Date())
     else if (filter === 'draft') list = list.filter(t => t.status === 'draft')
-
     const keyword = search.trim().toLowerCase()
     if (keyword) list = list.filter(t => t.judul.toLowerCase().includes(keyword))
-
     return list
   }, [tugasList, filter, search])
+
+  const toggleKelas = (k) => setForm(p => ({
+    ...p, kelasTarget: p.kelasTarget.includes(k) ? p.kelasTarget.filter(x => x !== k) : [...p.kelasTarget, k],
+  }))
+  const toggleRombel = (r) => setForm(p => ({
+    ...p, rombelTarget: p.rombelTarget.includes(r) ? p.rombelTarget.filter(x => x !== r) : [...p.rombelTarget, r],
+  }))
+
+  const handleCreateTask = async (e) => {
+    e.preventDefault()
+    if (!form.judul.trim()) return setFormError('Judul tugas wajib diisi.')
+    if (form.kelasTarget.length === 0) return setFormError('Pilih minimal 1 kelas target.')
+    setSubmitting(true); setFormError('')
+    try {
+      const fd = new FormData()
+      fd.append('judul', form.judul)
+      fd.append('deskripsi', form.deskripsi)
+      fd.append('jenis', form.jenis)
+      fd.append('status', form.status)
+      if (form.deadline) fd.append('deadline', new Date(form.deadline).toISOString())
+      form.kelasTarget.forEach(k => fd.append('kelasTarget', k))
+      form.rombelTarget.forEach(r => fd.append('rombelTarget', r))
+      form.lampiran.forEach(f => fd.append('lampiran', f))
+      if (form.jenis === 'link' && form.link) fd.append('deskripsi', form.deskripsi + '\n\nLink: ' + form.link)
+
+      const res = await apiRequest('/api/tugas', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || 'Gagal menyimpan tugas.')
+      setShowForm(false); setForm({ ...EMPTY_FORM }); fetchTugas()
+    } catch (e) { setFormError(e.message) }
+    finally { setSubmitting(false) }
+  }
 
   const handleDelete = async (id) => {
     if (!confirm('Yakin ingin menghapus tugas ini?')) return
     try {
       const res = await apiRequest(`/api/tugas/${id}`, { method: 'DELETE' })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.message)
-      }
+      if (!res.ok) { const d = await res.json(); throw new Error(d.message) }
       setTugasList(prev => prev.filter(t => t.id !== id))
-    } catch (e) {
-      console.error('Gagal menghapus:', e)
-    }
+    } catch (e) { console.error('Gagal menghapus:', e) }
+  }
+
+  const handleStatusChange = async (id, newStatus) => {
+    try {
+      const res = await apiRequest(`/api/tugas/${id}`, {
+        method: 'PUT', body: JSON.stringify({ status: newStatus }),
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.message) }
+      fetchTugas()
+    } catch (e) { console.error('Gagal ubah status:', e) }
   }
 
   const getTimeLeft = (deadline) => {
@@ -67,6 +144,10 @@ const TugasPage = () => {
     return `${days} Hari ${hours} Jam`
   }
 
+  const openForm = () => { setForm({ ...EMPTY_FORM }); setFormError(''); setShowForm(true) }
+
+  const allRombels = [...new Set(Object.values(rombelMap).flat())]
+
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-8">
@@ -75,18 +156,110 @@ const TugasPage = () => {
           <p className="text-gray-500 mt-1">{isGuru ? 'Kelola tugas yang diberikan kepada siswa' : 'Tugas yang perlu kamu kerjakan'}</p>
         </div>
         {isGuru && (
-          <button className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition flex items-center gap-2 shadow-sm shadow-blue-200">
+          <button onClick={openForm} className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition flex items-center gap-2 shadow-sm shadow-blue-200">
             <Plus className="w-5 h-5" /> Tambah Tugas
           </button>
         )}
       </div>
 
+      {/* MODAL FORM TAMBAH TUGAS */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-10 px-4 overflow-y-auto">
+          <form onSubmit={handleCreateTask} className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-8 relative mb-10">
+            <button type="button" onClick={() => setShowForm(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700"><X className="w-6 h-6" /></button>
+            <h2 className="text-xl font-bold text-gray-800 mb-6">Tambah Tugas Baru</h2>
+
+            {formError && <p className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm">{formError}</p>}
+
+            <div className="space-y-4">
+              <label className="block text-sm font-medium text-gray-700">Judul Tugas *
+                <input type="text" value={form.judul} onChange={e => setForm(p => ({ ...p, judul: e.target.value }))} className="w-full mt-1 px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Praktik Microsoft Word" required />
+              </label>
+
+              <label className="block text-sm font-medium text-gray-700">Jenis Tugas
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {JENIS_OPTIONS.map(opt => (
+                    <button type="button" key={opt.value} onClick={() => setForm(p => ({ ...p, jenis: opt.value }))}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition ${form.jenis === opt.value ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                      <opt.icon className="w-4 h-4" /> {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </label>
+
+              <label className="block text-sm font-medium text-gray-700">Deskripsi
+                <textarea value={form.deskripsi} onChange={e => setForm(p => ({ ...p, deskripsi: e.target.value }))} rows={4} className="w-full mt-1 px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 resize-none" placeholder="Kerjakan latihan halaman 20..." />
+              </label>
+
+              {form.jenis === 'link' && (
+                <label className="block text-sm font-medium text-gray-700">URL Link
+                  <input type="url" value={form.link} onChange={e => setForm(p => ({ ...p, link: e.target.value }))} className="w-full mt-1 px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="https://youtube.com/..." />
+                </label>
+              )}
+
+              {form.jenis !== 'link' && (
+                <label className="block text-sm font-medium text-gray-700">Lampiran (Opsional)
+                  <div className="mt-1 border-2 border-dashed border-gray-200 rounded-xl p-4 text-center hover:border-blue-300 transition cursor-pointer" onClick={() => fileRef.current?.click()}>
+                    <input ref={fileRef} type="file" multiple onChange={e => setForm(p => ({ ...p, lampiran: Array.from(e.target.files || []) }))} className="hidden" />
+                    <Upload className="w-6 h-6 text-gray-400 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500">{form.lampiran.length > 0 ? `${form.lampiran.length} file dipilih` : 'Klik untuk memilih file'}</p>
+                  </div>
+                </label>
+              )}
+
+              <label className="block text-sm font-medium text-gray-700">Deadline (Opsional)
+                <input type="datetime-local" value={form.deadline} onChange={e => setForm(p => ({ ...p, deadline: e.target.value }))} className="w-full mt-1 px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
+              </label>
+
+              <div>
+                <span className="block text-sm font-medium text-gray-700 mb-1">Kelas Target *</span>
+                <div className="flex flex-wrap gap-2">
+                  {kelasList.map(k => (
+                    <button type="button" key={k} onClick={() => toggleKelas(k)} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${form.kelasTarget.includes(k) ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                      Kelas {k}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {allRombels.length > 0 && (
+                <div>
+                  <span className="block text-sm font-medium text-gray-700 mb-1">Rombel Target (Opsional, kosong = semua rombel)</span>
+                  <div className="flex flex-wrap gap-2">
+                    {allRombels.map(r => (
+                      <button type="button" key={r} onClick={() => toggleRombel(r)} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${form.rombelTarget.includes(r) ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <span className="block text-sm font-medium text-gray-700 mb-1">Status Awal</span>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setForm(p => ({ ...p, status: 'draft' }))} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${form.status === 'draft' ? 'bg-yellow-500 text-white' : 'bg-gray-100 text-gray-600'}`}>Draft</button>
+                  <button type="button" onClick={() => setForm(p => ({ ...p, status: 'launch' }))} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${form.status === 'launch' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`}>Langsung Aktif</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 flex gap-3">
+              <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-3 border border-gray-200 rounded-xl font-medium text-gray-600 hover:bg-gray-50">Batal</button>
+              <button type="submit" disabled={submitting} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50">
+                {submitting ? 'Menyimpan...' : 'Simpan Tugas'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {isGuru && (
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-4 items-center justify-between">
           <div className="flex gap-2">
             {['semua', 'aktif', 'berakhir', 'draft'].map(key => (
-              <button key={key} onClick={() => setFilter(key)} className={`px-4 py-2 font-medium rounded-lg capitalize ${filter === key ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}>
-                {key === 'semua' ? 'Semua Tugas' : key === 'aktif' ? 'Sedang Berlangsung' : key.charAt(0).toUpperCase() + key.slice(1)}
+              <button key={key} onClick={() => setFilter(key)} className={`px-4 py-2 font-medium rounded-lg ${filter === key ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}>
+                {key === 'semua' ? 'Semua' : key === 'aktif' ? 'Aktif' : key === 'berakhir' ? 'Berakhir' : 'Draft'}
               </button>
             ))}
           </div>
@@ -149,7 +322,9 @@ const TugasPage = () => {
                   </Link>
                   {isGuru && (
                     <>
-                      <button className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition"><Edit className="w-4 h-4" /></button>
+                      {tugas.status === 'draft' && (
+                        <button onClick={() => handleStatusChange(tugas.id, 'launch')} className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition" title="Launch">🚀</button>
+                      )}
                       <button onClick={() => handleDelete(tugas.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"><Trash2 className="w-4 h-4" /></button>
                     </>
                   )}
@@ -159,7 +334,7 @@ const TugasPage = () => {
           })}
 
           {isGuru && (
-            <div className="border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center h-[380px] text-gray-400 hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50 transition cursor-pointer">
+            <div onClick={openForm} className="border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center h-[380px] text-gray-400 hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50 transition cursor-pointer">
               <Plus className="w-8 h-8 mb-2" />
               <p className="font-medium">Tambah Tugas Baru</p>
             </div>
