@@ -152,7 +152,7 @@ const TugasPage = () => {
   const getTimeLeft = (deadline) => {
     if (!deadline) return null
     const diff = new Date(deadline).getTime() - Date.now()
-    if (diff <= 0) return { ended: true }
+    if (diff <= 0) return 'Berakhir'
 
     const days = Math.floor(diff / (1000 * 60 * 60 * 24))
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
@@ -302,7 +302,7 @@ const TugasPage = () => {
           {filtered.map(tugas => {
             if (!isGuru && !matchesTask(tugas)) return null
             const timeLeft = getTimeLeft(tugas.deadline)
-            const isEnded = timeLeft?.ended || timeLeft === 'Berakhir'
+            const isEnded = timeLeft === 'Berakhir'
 
             return (
               <div key={tugas.id} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition group">
@@ -318,10 +318,10 @@ const TugasPage = () => {
                 <h3 className="font-bold text-gray-800 text-lg mb-1 group-hover:text-blue-600 transition">{tugas.judul}</h3>
                 <p className="text-sm text-gray-500 mb-4 line-clamp-2">{tugas.deskripsi || 'Tidak ada deskripsi.'}</p>
 
-                {timeLeft && (
+                {timeLeft && !isEnded && (
                   <div className="flex justify-between text-sm mb-4">
                     <span className="text-gray-500">Sisa Waktu</span>
-                    <span className={`font-semibold flex items-center gap-1 ${isEnded ? 'text-gray-400' : 'text-orange-500'}`}>
+                    <span className="font-semibold flex items-center gap-1 text-orange-500">
                       <Clock className="w-4 h-4" /> {timeLeft}
                     </span>
                   </div>
