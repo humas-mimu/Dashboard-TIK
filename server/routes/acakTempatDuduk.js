@@ -34,23 +34,35 @@ router.post('/shuffle', authMiddleware, async (req, res) => {
       return array
     }
 
-    // 1) Pisahkan siswa berpasangan (mustPairIds) dan siswa biasa
+    // 1) Pisahkan siswa yang ditandai (tagged) dan siswa biasa (singles)
     const pairIdsSet = new Set(mustPairIds || [])
-    const pairsPool = shuffle(siswaList.filter(s => pairIdsSet.has(s.id)))
+    const taggedPool = shuffle(siswaList.filter(s => pairIdsSet.has(s.id)))
     const singlesPool = shuffle(siswaList.filter(s => !pairIdsSet.has(s.id)))
 
-    // Gabungkan siswa berpasangan menjadi kelompok isi 2
+    // 2) Pasangkan siswa yang ditandai. Apapun jumlah genap/ganjap,
+    //    siswa yang ditandai TIDAK BOLEH sendiri. Jika jumlah siswa
+    //    ditandai ganjil, ambil 1 siswa dari singlesPool untuk dijadikan pasangan.
     const pairsGroup = []
-    for (let i = 0; i < pairsPool.length; i += 2) {
-      pairsGroup.push(pairsPool.slice(i, i + 2))
+    while (taggedPool.length > 0) {
+      const s1 = taggedPool.pop()
+      let s2 = null
+      if (taggedPool.length > 0) {
+        s2 = taggedPool.pop()
+      } else if (singlesPool.length > 0) {
+        s2 = singlesPool.pop()
+      }
+      if (s2) {
+        pairsGroup.push([s1, s2])
+      }
+      // Jika tidak ada s2 (tidak ada tagged lain & tidak ada single),
+      // siswa ini diabaikan (kasus ekstrim: hanya 1 siswa di kelas).
     }
 
-    // Acak urutan device agar penempatan awal acak (tidak selalu menumpuk di depan)
+    // 3) Acak urutan device untuk penempatan
     const deviceOrder = shuffle(Array.from({ length: MAX_DEVICES }, (_, i) => i))
     let deviceCursor = 0
 
-    // 2) Tempatkan pasangan (pairsGroup) terlebih dahulu
-    // Tiap pasangan mendapat 1 device penuh (isi 2 siswa)
+    // 4) Tempatkan pasangan terlebih dahulu (tiap pair = 1 device)
     for (const group of pairsGroup) {
       if (deviceCursor >= MAX_DEVICES) break
       const devIdx = deviceOrder[deviceCursor]
@@ -58,7 +70,7 @@ router.post('/shuffle', authMiddleware, async (req, res) => {
       deviceCursor++
     }
 
-    // 3) Tempatkan siswa biasa (singlesPool) di device yang MASIH KOSONG terlebih dahulu
+    // 5) Tempatkan siswa biasa (singlesPool) di device yang MASIH KOSONG terlebih dahulu
     // Target: semua device terisi minimal 1 anak sebelum ada device isi 2 (selain pasangan)
     const remainingSingles = [...singlesPool]
 
@@ -69,10 +81,9 @@ router.post('/shuffle', authMiddleware, async (req, res) => {
       deviceCursor++
     }
 
-    // 4) Jika singles masih tersisa (berarti total siswa > 16), sebar sisa singles tersebut
-    // secara acak ke device-device yang baru terisi 1 siswa (bukan device kosong atau isi 2)
+    // 6) Jika singles masih tersisa (total siswa > 16), sebar sisa singles
+    //    secara acak ke device-device yang baru terisi 1 siswa
     if (remainingSingles.length > 0) {
-      // Cari device yang saat ini tepat berisi 1 siswa
       const availableDevs = devices.filter(d => d.students.length === 1)
       shuffle(availableDevs)
 
