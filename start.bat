@@ -30,7 +30,7 @@ IF NOT EXIST "node_modules" (
     )
 )
 
-IF NOT EXIST "client\node_modules" (
+IF NOT EXIST "client\node_modules\.bin\vite.cmd" (
     echo Menginstall dependencies frontend...
     cd client
     call npm install
@@ -55,7 +55,7 @@ IF NOT EXIST "server\node_modules" (
 )
 
 REM Generate Prisma client & Migrate DB
-echo Menjalankan Prisma migrate & seed...
+echo Menjalankan Prisma migrate dan seed...
 cd server
 
 REM Buat .env otomatis jika belum ada
