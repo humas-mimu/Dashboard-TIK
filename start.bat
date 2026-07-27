@@ -30,16 +30,20 @@ IF NOT EXIST "node_modules" (
     )
 )
 
+echo Menginstall dependencies frontend...
+cd client
+call npm install
+if %errorlevel% neq 0 (
+    echo Gagal menginstall dependencies frontend.
+    pause
+    exit /b 1
+)
+cd ..
+
 IF NOT EXIST "client\node_modules\.bin\vite.cmd" (
-    echo Menginstall dependencies frontend...
-    cd client
-    call npm install
-    if %errorlevel% neq 0 (
-        echo Gagal menginstall dependencies frontend.
-        pause
-        exit /b 1
-    )
-    cd ..
+    echo Vite belum ditemukan setelah install frontend.
+    pause
+    exit /b 1
 )
 
 IF NOT EXIST "server\node_modules" (
