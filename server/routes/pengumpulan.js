@@ -11,6 +11,25 @@ const router = express.Router()
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } })
 
+const safeName = (value) => String(value || 'file').replace(/[^a-zA-Z0-9._-]/g, '_')
+
+async function uniqueFilePath(directory, originalName) {
+  const ext = path.extname(originalName)
+  const base = path.basename(originalName, ext)
+  let index = 0
+
+  while (true) {
+    const suffix = index === 0 ? '' : ` (${index})`
+    const candidate = path.join(directory, `${base}${suffix}${ext}`)
+    try {
+      await fs.access(candidate)
+      index += 1
+    } catch {
+      return candidate
+    }
+  }
+}
+
 // Upload tugas
 router.post('/upload', authMiddleware, upload.single('file'), async (req, res) => {
   if (req.user.role !== 'siswa') {
@@ -30,16 +49,34 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
     const cleanSiswaName = siswa.nama.replace(/[^a-zA-Z0-9]/g, '_')
     const finalFilename = `${cleanSiswaName}${ext}`
 
-    const destination = path.join(
-      settings.baseDir,
-      'PengumpulanTugas',
-      tugas.judul.replace(/[^a-zA-Z0-9]/g, '_'),
-      `${siswa.kelas}_${siswa.rombel}`
-    )
+    const kelasFolder = `${siswa.kelas}${siswa.rombel}`
+    const tugasFolder = safeName(tugas.judul)
+    const pattern = settings.submissionFolderPattern || 'KELAS_ROMBEL/NAMA_TUGAS'
+
+    let destination
+    switch (pattern) {
+      case 'NAMA_TUGAS/KELAS_ROMBEL':
+        destination = path.join(settings.baseDir, 'PengumpulanTugas', tugasFolder, kelasFolder)
+        break
+      case 'KELAS_ROMBEL/NAMA_TUGAS':
+      default:
+        destination = path.join(settings.baseDir, 'PengumpulanTugas', kelasFolder, tugasFolder)
+        break
+    }
+
     await fs.mkdir(destination, { recursive: true })
-    const finalPath = path.join(destination, finalFilename)
+    const duplicateMode = settings.duplicateFileHandling || 'RENAME_INCREMENT'
+
+    let finalPath
+    if (duplicateMode === 'REPLACE') {
+      finalPath = path.join(destination, finalFilename)
+    } else {
+      finalPath = await uniqueFilePath(destination, finalFilename)
+    }
 
     await fs.writeFile(finalPath, file.buffer)
+
+    const duplicateLabel = duplicateMode === 'REPLACE' ? 'diperbarui' : 'ditambahkan'
 
     // Replace
     const existing = await prisma.pengumpulan.findFirst({
@@ -47,22 +84,21 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
     })
 
     if (existing) {
-      // Hapus file lama jika path berbeda
       if (existing.path !== finalPath) {
         try { await fs.unlink(existing.path) } catch (err) {}
       }
 
       const updated = await prisma.pengumpulan.update({
         where: { id: existing.id },
-        data: { namaFile: finalFilename, path: finalPath, ukuran: file.size },
+        data: { namaFile: path.basename(finalPath), path: finalPath, ukuran: file.size },
       })
       req.app.get('io').emit('pengumpulan-update', updated)
-      return res.json({ message: 'Tugas berhasil diunggah ulang.', data: updated })
+      return res.json({ message: `File berhasil ${duplicateLabel}.`, data: updated })
     }
 
     const pengumpulan = await prisma.pengumpulan.create({
       data: {
-        tugasId, siswaId: req.user.id, namaFile: finalFilename, path: finalPath, ukuran: file.size,
+        tugasId, siswaId: req.user.id, namaFile: path.basename(finalPath), path: finalPath, ukuran: file.size,
       },
     })
     req.app.get('io').emit('pengumpulan-baru', pengumpulan)

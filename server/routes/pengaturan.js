@@ -27,6 +27,8 @@ router.put('/', authMiddleware, async (req, res) => {
         baseDir: data.baseDir,
         tema: data.tema,
         jamLogout: parseInt(data.jamLogout),
+        submissionFolderPattern: data.submissionFolderPattern,
+        duplicateFileHandling: data.duplicateFileHandling,
       },
     })
     res.json(updated)

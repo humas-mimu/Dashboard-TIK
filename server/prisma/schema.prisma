@@ -70,6 +70,8 @@ model Pengaturan {
   baseDir     String @default("./storage")
   tema        String @default("light")
   jamLogout   Int    @default(60)
+  submissionFolderPattern String @default("KELAS_ROMBEL/NAMA_TUGAS")
+  duplicateFileHandling   String @default("RENAME_INCREMENT")
 }
 
 model QuickShareRoom {
