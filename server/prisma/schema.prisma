@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Guru {
+  id       String @id @default(uuid())
+  username String @unique
+  password String
+  nama     String
+}
+
+model Siswa {
+  id            String        @id @default(uuid())
+  nama          String
+  tanggalLahir  DateTime
+  kelas         String
+  rombel        String
+  jenisKelamin  String
+  nis           String?
+  password      String
+  pengumpulan   Pengumpulan[]
+}
+
+model Tugas {
+  id           String          @id @default(uuid())
+  judul        String
+  deskripsi    String?
+  jenis        String
+  status       String          @default("draft")
+  deadline     DateTime?
+  kelasTarget  String
+  rombelTarget String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  lampiran     LampiranTugas[]
+  pengumpulan  Pengumpulan[]
+}
+
+model LampiranTugas {
+  id       String @id @default(uuid())
+  tugasId  String
+  namaFile String
+  path     String
+  tugas    Tugas  @relation(fields: [tugasId], references: [id], onDelete: Cascade)
+}
+
+model Pengumpulan {
+  id        String   @id @default(uuid())
+  tugasId   String
+  siswaId   String
+  namaFile  String
+  path      String
+  ukuran    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tugas     Tugas    @relation(fields: [tugasId], references: [id], onDelete: Cascade)
+  siswa     Siswa    @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+}
+
+model Pengaturan {
+  id          String @id @default("1")
+  logoPath    String?
+  namaSekolah String @default("Sekolah Kita")
+  alamat      String?
+  baseDir     String @default("./storage")
+  tema        String @default("light")
+  jamLogout   Int    @default(60)
+}
+
+model QuickShareRoom {
+  id         String           @id @default(uuid())
+  kode       String           @unique
+  nama       String
+  password   String?
+  mode       String
+  batasWaktu DateTime
+  batasSize  Int?
+  batasFile  Int?
+  status     String           @default("aktif")
+  createdAt  DateTime         @default(now())
+  files      QuickShareFile[]
+}
+
+model QuickShareFile {
+  id        String         @id @default(uuid())
+  roomId    String
+  namaFile  String
+  path      String
+  ukuran    Int
+  pengirim  String
+  createdAt DateTime       @default(now())
+  room      QuickShareRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
