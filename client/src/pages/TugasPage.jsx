@@ -75,14 +75,28 @@ const TugasPage = () => {
   }
 
   const filtered = useMemo(() => {
-    let list = tugasList
+    let list = isGuru
+      ? tugasList
+      : tugasList
+
     if (filter === 'aktif') list = list.filter(t => t.status === 'launch')
     else if (filter === 'berakhir') list = list.filter(t => t.deadline && new Date(t.deadline) < new Date())
     else if (filter === 'draft') list = list.filter(t => t.status === 'draft')
     const keyword = search.trim().toLowerCase()
     if (keyword) list = list.filter(t => t.judul.toLowerCase().includes(keyword))
     return list
-  }, [tugasList, filter, search])
+  }, [tugasList, filter, search, isGuru])
+
+  const matchesTask = (tugas) => {
+    const userKelas = user.kelas
+    const userRombel = user.rombel
+    const kelasTarget = Array.isArray(tugas.kelasTarget) ? tugas.kelasTarget : JSON.parse(tugas.kelasTarget || '[]')
+    const rombelTarget = tugas.rombelTarget ? (Array.isArray(tugas.rombelTarget) ? tugas.rombelTarget : JSON.parse(tugas.rombelTarget || '[]')) : []
+
+    const kelasMatch = kelasTarget.length === 0 || kelasTarget.includes(userKelas)
+    const rombelMatch = rombelTarget.length === 0 || rombelTarget.includes(userRombel)
+    return kelasMatch && rombelMatch
+  }
 
   const toggleKelas = (k) => setForm(p => ({
     ...p, kelasTarget: p.kelasTarget.includes(k) ? p.kelasTarget.filter(x => x !== k) : [...p.kelasTarget, k],
@@ -138,10 +152,15 @@ const TugasPage = () => {
   const getTimeLeft = (deadline) => {
     if (!deadline) return null
     const diff = new Date(deadline).getTime() - Date.now()
-    if (diff <= 0) return 'Berakhir'
+    if (diff <= 0) return { ended: true }
+
     const days = Math.floor(diff / (1000 * 60 * 60 * 24))
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-    return `${days} Hari ${hours} Jam`
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000)
+
+    if (days > 0) return `${days} Hari ${hours} Jam`
+    return `${hours} Jam ${minutes} Menit ${seconds} Detik`
   }
 
   const openForm = () => { setForm({ ...EMPTY_FORM }); setFormError(''); setShowForm(true) }
@@ -281,8 +300,9 @@ const TugasPage = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map(tugas => {
+            if (!isGuru && !matchesTask(tugas)) return null
             const timeLeft = getTimeLeft(tugas.deadline)
-            const isEnded = timeLeft === 'Berakhir'
+            const isEnded = timeLeft?.ended || timeLeft === 'Berakhir'
 
             return (
               <div key={tugas.id} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition group">

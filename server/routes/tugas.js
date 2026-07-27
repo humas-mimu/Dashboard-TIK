@@ -45,14 +45,18 @@ router.get('/siswa', authMiddleware, async (req, res) => {
   }
   try {
     const siswa = await prisma.siswa.findUnique({ where: { id: req.user.id } })
-    const tugas = await prisma.tugas.findMany({
-      where: {
-        status: 'launch',
-        kelasTarget: {
-          contains: `"${siswa.kelas}"`,
-        },
-      },
+    const allTugas = await prisma.tugas.findMany({
+      where: { status: 'launch' },
       orderBy: { deadline: 'asc' },
+    })
+
+    // Filter kelas DAN rombel
+    const tugas = allTugas.filter((t) => {
+      const kelasTarget = JSON.parse(t.kelasTarget || '[]')
+      const rombelTarget = t.rombelTarget ? JSON.parse(t.rombelTarget || '[]') : []
+      const kelasMatch = kelasTarget.includes(siswa.kelas)
+      const rombelMatch = rombelTarget.length === 0 || rombelTarget.includes(siswa.rombel)
+      return kelasMatch && rombelMatch
     })
     res.json(tugas)
   } catch (error) {
