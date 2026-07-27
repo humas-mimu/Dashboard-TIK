@@ -136,19 +136,21 @@ const SiswaPage = () => {
                 <th className="px-6 py-4">Nama</th>
                 <th className="px-6 py-4">Kelas</th>
                 <th className="px-6 py-4">Rombel</th>
+                <th className="px-6 py-4">Tanggal Lahir</th>
                 <th className="px-6 py-4">Jenis Kelamin</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan="4" className="px-6 py-10 text-center text-gray-400">Memuat data siswa...</td></tr>
+                <tr><td colSpan="5" className="px-6 py-10 text-center text-gray-400">Memuat data siswa...</td></tr>
               ) : siswa.length === 0 ? (
-                <tr><td colSpan="4" className="px-6 py-10 text-center text-gray-400">Belum ada data siswa.</td></tr>
+                <tr><td colSpan="5" className="px-6 py-10 text-center text-gray-400">Belum ada data siswa.</td></tr>
               ) : siswa.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 font-medium text-gray-800">{item.nama}</td>
                   <td className="px-6 py-4 text-gray-600">{item.kelas}</td>
                   <td className="px-6 py-4 text-gray-600">{item.rombel}</td>
+                  <td className="px-6 py-4 text-gray-600">{item.tanggalLahir ? new Date(item.tanggalLahir).toLocaleDateString('id-ID') : '-'}</td>
                   <td className="px-6 py-4 text-gray-600">{item.jenisKelamin}</td>
                 </tr>
               ))}

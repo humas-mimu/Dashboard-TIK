@@ -135,12 +135,12 @@ router.post('/import', authMiddleware, upload.single('file'), async (req, res) =
       const emptyHeader = requiredHeaders.find((header) => !String(row[header] ?? '').trim())
       if (emptyHeader) throw new Error(`Baris ${index + 2}: kolom "${emptyHeader}" wajib diisi.`)
       if (!tanggalLahir) throw new Error(`Baris ${index + 2}: format TANGGAL LAHIR tidak valid.`)
-      const dd = String(tanggalLahir.getDate()).padStart(2, '0')
-      const mm = String(tanggalLahir.getMonth() + 1).padStart(2, '0')
+      const dd = String(tanggalLahir.getUTCDate()).padStart(2, '0')
+      const mm = String(tanggalLahir.getUTCMonth() + 1).padStart(2, '0')
       return {
         nama: String(row.NAMA).trim(), kelas: String(row.KELAS).trim(), rombel: String(row.ROMBEL).trim(),
         tanggalLahir, jenisKelamin: String(row['JENIS KELAMIN']).trim(), nis: row.NIS ? String(row.NIS).trim() : null,
-        password: `${dd}${mm}${tanggalLahir.getFullYear()}`,
+        password: `${dd}${mm}${tanggalLahir.getUTCFullYear()}`,
       }
     })
 
