@@ -196,10 +196,6 @@ const LoginPage = () => {
             </motion.button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-gray-500">
-            <p>Akun Guru default: <code className="bg-gray-100 px-1.5 py-0.5 rounded">admin</code> / <code className="bg-gray-100 px-1.5 py-0.5 rounded">admin123</code></p>
-            <p className="mt-1">Siswa login dengan kelas, rombel, nama, dan tanggal lahir (DDMMYYYY).</p>
-          </div>
         </div>
       </motion.div>
     </div>

@@ -1,12 +1,92 @@
-import React from 'react'
-import { Upload, FileSpreadsheet, Download } from 'lucide-react'
+import React, { useEffect, useRef, useState } from 'react'
+import { Upload, Download, FileSpreadsheet, RefreshCw } from 'lucide-react'
+import { apiRequest } from '../utils/api'
 
 const SiswaPage = () => {
-  const siswa = [
-    { id: 1, nama: 'Ahmad Fauzi', kelas: '5', rombel: 'A', jk: 'Laki-laki' },
-    { id: 2, nama: 'Siti Aisyah', kelas: '5', rombel: 'A', jk: 'Perempuan' },
-    { id: 3, nama: 'Budi Santoso', kelas: '5', rombel: 'B', jk: 'Laki-laki' },
-  ]
+  const fileInputRef = useRef(null)
+  const [siswa, setSiswa] = useState([])
+  const [selectedFile, setSelectedFile] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+
+  const fetchSiswa = async () => {
+    setLoading(true)
+    try {
+      const res = await apiRequest('/api/siswa')
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || 'Gagal memuat data siswa.')
+      setSiswa(Array.isArray(data) ? data : [])
+    } catch (e) {
+      setError(e.message || 'Gagal memuat data siswa.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchSiswa()
+  }, [])
+
+  const handleFileChange = (event) => {
+    setSelectedFile(event.target.files?.[0] || null)
+    setMessage('')
+    setError('')
+  }
+
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      setError('Pilih file Excel terlebih dahulu.')
+      return
+    }
+
+    setUploading(true)
+    setError('')
+    setMessage('')
+
+    try {
+      const formData = new FormData()
+      formData.append('file', selectedFile)
+      const res = await apiRequest('/api/siswa/import', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || 'Gagal mengimpor data siswa.')
+
+      setMessage(data.message)
+      setSelectedFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      fetchSiswa()
+    } catch (e) {
+      setError(e.message || 'Gagal mengimpor data siswa.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleDownloadTemplate = async () => {
+    setError('')
+    try {
+      const res = await apiRequest('/api/siswa/template/download')
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.message || 'Gagal mengunduh template.')
+      }
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'template-data-siswa.xlsx'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (e) {
+      setError(e.message || 'Gagal mengunduh template.')
+    }
+  }
 
   return (
     <div className="p-8">
@@ -15,7 +95,7 @@ const SiswaPage = () => {
           <h1 className="text-2xl font-bold text-gray-800">Data Siswa</h1>
           <p className="text-gray-500 mt-1">Impor data siswa dari file Excel</p>
         </div>
-        <button className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition flex items-center gap-2">
+        <button type="button" onClick={handleDownloadTemplate} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition flex items-center gap-2">
           <Download className="w-4 h-4" /> Download Template
         </button>
       </div>
@@ -27,9 +107,20 @@ const SiswaPage = () => {
           </div>
           <h3 className="text-lg font-bold text-gray-800 mb-2">Upload File Excel</h3>
           <p className="text-gray-500 mb-4">Format kolom: NAMA, KELAS, ROMBEL, TANGGAL LAHIR, JENIS KELAMIN</p>
-          <button className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition">
+          <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileChange} className="hidden" id="siswa-file-input" />
+          <label htmlFor="siswa-file-input" className="inline-flex cursor-pointer bg-blue-600 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition">
             Pilih File
-          </button>
+          </label>
+          {selectedFile && (
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+              <span className="text-sm text-gray-600 flex items-center gap-2"><FileSpreadsheet className="w-4 h-4 text-green-600" /> {selectedFile.name}</span>
+              <button type="button" onClick={handleUpload} disabled={uploading} className="bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+                {uploading && <RefreshCw className="w-4 h-4 animate-spin" />} {uploading ? 'Mengimpor...' : 'Import Data'}
+              </button>
+            </div>
+          )}
+          {message && <p className="mt-4 text-sm text-green-600 font-medium">{message}</p>}
+          {error && <p className="mt-4 text-sm text-red-600 font-medium">{error}</p>}
         </div>
       </div>
 
@@ -46,19 +137,19 @@ const SiswaPage = () => {
                 <th className="px-6 py-4">Kelas</th>
                 <th className="px-6 py-4">Rombel</th>
                 <th className="px-6 py-4">Jenis Kelamin</th>
-                <th className="px-6 py-4">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {siswa.map((item) => (
+              {loading ? (
+                <tr><td colSpan="4" className="px-6 py-10 text-center text-gray-400">Memuat data siswa...</td></tr>
+              ) : siswa.length === 0 ? (
+                <tr><td colSpan="4" className="px-6 py-10 text-center text-gray-400">Belum ada data siswa.</td></tr>
+              ) : siswa.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 font-medium text-gray-800">{item.nama}</td>
                   <td className="px-6 py-4 text-gray-600">{item.kelas}</td>
                   <td className="px-6 py-4 text-gray-600">{item.rombel}</td>
-                  <td className="px-6 py-4 text-gray-600">{item.jk}</td>
-                  <td className="px-6 py-4">
-                    <button className="text-blue-600 text-sm font-medium hover:text-blue-700">Edit</button>
-                  </td>
+                  <td className="px-6 py-4 text-gray-600">{item.jenisKelamin}</td>
                 </tr>
               ))}
             </tbody>

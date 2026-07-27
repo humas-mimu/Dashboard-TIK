@@ -16,6 +16,7 @@ import LocalDiskPage from './pages/LocalDiskPage'
 
 function App() {
   const [user, setUser] = useState(null)
+  const [checkingAuth, setCheckingAuth] = useState(true)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -29,12 +30,24 @@ function App() {
         console.error('Failed to parse user:', e)
         localStorage.removeItem('user')
         localStorage.removeItem('token')
-        navigate('/login')
       }
-    } else {
-      navigate('/login')
     }
-  }, [navigate])
+    setCheckingAuth(false)
+  }, [])
+
+  useEffect(() => {
+    if (!checkingAuth && !user && window.location.pathname !== '/login') {
+      navigate('/login', { replace: true })
+    }
+  }, [checkingAuth, user, navigate])
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
 
   if (!user && window.location.pathname !== '/login') {
     return <Navigate to="/login" replace />
