@@ -18,6 +18,7 @@ const LoginPage = () => {
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
     if (role !== 'siswa') return
@@ -105,10 +106,12 @@ const LoginPage = () => {
         ? await apiRequest('/api/auth/login-guru', {
           method: 'POST',
           body: JSON.stringify({ username, password }),
+          skipAuthRedirect: true,
         })
         : await apiRequest('/api/auth/login-siswa', {
           method: 'POST',
           body: JSON.stringify({ siswaId, password }),
+          skipAuthRedirect: true,
         })
       const data = await res.json()
 
@@ -186,7 +189,11 @@ const LoginPage = () => {
                   </select>
                 </label>
                 <label className="block text-sm font-medium text-gray-700">Password (Tanggal Lahir DDMMYYYY)
-                  <span className="relative block mt-1"><Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" /><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition" placeholder="Contoh: 12052015" required maxLength={8} /></span>
+                  <span className="relative block mt-1">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-10 pr-12 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition" placeholder="Contoh: 12052015" required maxLength={8} />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-green-600 hover:text-green-700 pr-1" tabIndex={-1}>{showPassword ? 'Sembunyi' : 'Lihat'}</button>
+                  </span>
                 </label>
               </>
             )}

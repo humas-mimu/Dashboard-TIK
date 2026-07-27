@@ -9,17 +9,35 @@ const router = express.Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
 const requiredHeaders = ['NAMA', 'KELAS', 'ROMBEL', 'TANGGAL LAHIR', 'JENIS KELAMIN']
 
-function parseBirthDate(value) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value
+function parseBirthParts(value) {
   if (typeof value === 'number') {
     const parsed = XLSX.SSF.parse_date_code(value)
-    if (parsed) return new Date(parsed.y, parsed.m - 1, parsed.d)
+    if (!parsed) return null
+    return { day: parsed.d, month: parsed.m, year: parsed.y }
   }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return {
+      day: value.getDate(),
+      month: value.getMonth() + 1,
+      year: value.getFullYear(),
+    }
+  }
+
   const text = String(value || '').trim()
   const match = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
   if (!match) return null
-  const date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]))
-  return Number.isNaN(date.getTime()) ? null : date
+
+  const day = Number(match[1])
+  const month = Number(match[2])
+  const year = Number(match[3])
+  const date = new Date(year, month - 1, day)
+
+  if (Number.isNaN(date.getTime()) || date.getDate() !== day || date.getMonth() + 1 !== month || date.getFullYear() !== year) {
+    return null
+  }
+
+  return { day, month, year }
 }
 
 // Get unique kelas for login dropdown
@@ -131,16 +149,19 @@ router.post('/import', authMiddleware, upload.single('file'), async (req, res) =
     if (missing.length) return res.status(400).json({ message: `Kolom "${missing[0]}" tidak ditemukan. Silakan gunakan Template Data Siswa.` })
 
     const data = rows.map((row, index) => {
-      const tanggalLahir = parseBirthDate(row['TANGGAL LAHIR'])
+      const birthParts = parseBirthParts(row['TANGGAL LAHIR'])
       const emptyHeader = requiredHeaders.find((header) => !String(row[header] ?? '').trim())
       if (emptyHeader) throw new Error(`Baris ${index + 2}: kolom "${emptyHeader}" wajib diisi.`)
-      if (!tanggalLahir) throw new Error(`Baris ${index + 2}: format TANGGAL LAHIR tidak valid.`)
-      const dd = String(tanggalLahir.getUTCDate()).padStart(2, '0')
-      const mm = String(tanggalLahir.getUTCMonth() + 1).padStart(2, '0')
+      if (!birthParts) throw new Error(`Baris ${index + 2}: format TANGGAL LAHIR tidak valid.`)
+
+      const dd = String(birthParts.day).padStart(2, '0')
+      const mm = String(birthParts.month).padStart(2, '0')
+      const tanggalLahir = new Date(birthParts.year, birthParts.month - 1, birthParts.day)
+
       return {
         nama: String(row.NAMA).trim(), kelas: String(row.KELAS).trim(), rombel: String(row.ROMBEL).trim(),
         tanggalLahir, jenisKelamin: String(row['JENIS KELAMIN']).trim(), nis: row.NIS ? String(row.NIS).trim() : null,
-        password: `${dd}${mm}${tanggalLahir.getUTCFullYear()}`,
+        password: `${dd}${mm}${birthParts.year}`,
       }
     })
 
