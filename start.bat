@@ -91,12 +91,14 @@ cd ..
 
 REM Build frontend
 echo Membangun frontend...
-call npm run build-client
+cd client
+call npm run build
 if %errorlevel% neq 0 (
     echo Gagal membangun frontend.
     pause
     exit /b 1
 )
+cd ..
 
 echo Memulai server backend dan frontend...
 start cmd /k "cd server && npm start"
