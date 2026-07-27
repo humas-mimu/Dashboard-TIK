@@ -24,6 +24,7 @@ model Siswa {
   nis           String?
   password      String
   pengumpulan   Pengumpulan[]
+  aktivitas     AktivitasSiswa[]
 }
 
 model Tugas {
@@ -39,6 +40,7 @@ model Tugas {
   updatedAt    DateTime        @updatedAt
   lampiran     LampiranTugas[]
   pengumpulan  Pengumpulan[]
+  aktivitas    AktivitasSiswa[]
 }
 
 model LampiranTugas {
@@ -62,6 +64,22 @@ model Pengumpulan {
   siswa     Siswa    @relation(fields: [siswaId], references: [id], onDelete: Cascade)
 }
 
+model AktivitasSiswa {
+  id        String   @id @default(uuid())
+  siswaId   String
+  tugasId   String?
+  jenis     String   // LOGIN, BUKA_TUGAS, UPLOAD, DOWNLOAD
+  deskripsi String?
+  createdAt DateTime @default(now())
+  siswa     Siswa    @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+  tugas     Tugas?   @relation(fields: [tugasId], references: [id], onDelete: SetNull)
+
+  @@index([siswaId])
+  @@index([tugasId])
+  @@index([jenis])
+  @@index([createdAt])
+}
+
 model Pengaturan {
   id          String @id @default("1")
   logoPath    String?
@@ -72,6 +90,17 @@ model Pengaturan {
   jamLogout   Int    @default(60)
   submissionFolderPattern String @default("KELAS_ROMBEL/NAMA_TUGAS")
   duplicateFileHandling   String @default("RENAME_INCREMENT")
+}
+
+model AktivitasSiswa {
+  id        String   @id @default(uuid())
+  siswaId   String
+  tugasId   String?
+  jenis     String   // LOGIN, BUKA_TUGAS, UPLOAD
+  createdAt DateTime @default(now())
+
+  siswa     Siswa    @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+  tugas     Tugas?   @relation(fields: [tugasId], references: [id], onDelete: Cascade)
 }
 
 model QuickShareRoom {

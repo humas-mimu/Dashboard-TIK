@@ -2,6 +2,7 @@ import express from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { PrismaClient } from '@prisma/client'
+import { catatAktivitas, JENIS_AKTIVITAS } from '../services/activityService.js'
 
 const router = express.Router()
 const prisma = new PrismaClient()
@@ -79,6 +80,19 @@ router.post('/login-siswa', async (req, res) => {
       token,
       user: { id: siswa.id, nama: siswa.nama, kelas: siswa.kelas, rombel: siswa.rombel, role: 'siswa' },
     })
+
+    // Catat aktivitas login
+    try {
+      await catatAktivitas({
+        siswaId: siswa.id,
+        tugasId: null,
+        jenis: JENIS_AKTIVITAS.LOGIN,
+        deskripsi: 'Login ke dashboard',
+        io: req.app.get('io')
+      })
+    } catch (e) {
+      console.error('Gagal catat aktivitas login:', e)
+    }
   } catch (error) {
     res.status(500).json({ message: 'Terjadi kesalahan server.', error: error.message })
   }

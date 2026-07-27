@@ -1,7 +1,7 @@
 import express from 'express'
 import multer from 'multer'
 import { PrismaClient } from '@prisma/client'
-import authMiddleware from '../middleware/authMiddleware.js'
+import { catatAktivitas, JENIS_AKTIVITAS } from '../services/activityService.js'
 import path from 'path'
 import fs from 'fs/promises'
 import XLSX from 'xlsx'
