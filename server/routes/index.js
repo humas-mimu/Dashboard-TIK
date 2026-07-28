@@ -9,6 +9,7 @@ import fileSharingRoutes from './fileSharing.js'
 import quickShareRoutes from './quickShare.js'
 import localDiskRoutes from './localDisk.js'
 import acakTempatDudukRoutes from './acakTempatDuduk.js'
+import aktivitasRoutes from './aktivitas.js'
 
 const router = express.Router()
 
@@ -22,6 +23,7 @@ router.use('/fileshare', fileSharingRoutes)
 router.use('/quickshare', quickShareRoutes)
 router.use('/localdisk', localDiskRoutes)
 router.use('/acak', acakTempatDudukRoutes)
+router.use('/aktivitas', aktivitasRoutes)
 
 router.get('/', (req, res) => {
   res.json({ message: 'Dashboard TIK API' })

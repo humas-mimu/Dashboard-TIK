@@ -264,15 +264,16 @@ router.post('/', authMiddleware, upload.array('lampiran', 5), async (req, res) =
         kelasTarget.forEach(kelas => {
           rombelTargets.push({ kelas, rombel })
         })
-      } else {
-        // Ambil semua rombel dari kelas target yang ada siswanya
-        const siswaList = await prisma.siswa.findMany({
-          where: { kelas: { in: kelasTarget } },
-          select: { kelas: true, rombel: true },
-          distinct: ['kelas', 'rombel']
-        })
-        rombelTargets = siswaList
-      }
+      })
+    } else {
+      // Ambil semua rombel dari kelas target yang ada siswanya
+      const siswaList = await prisma.siswa.findMany({
+        where: { kelas: { in: kelasTarget } },
+        select: { kelas: true, rombel: true },
+        distinct: ['kelas', 'rombel']
+      })
+      rombelTargets = siswaList
+    }
 
     // Buat tugas per rombel target
     const createdTasks = []

@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Calendar, Clock, FileText, Upload, AlertCircle, ArrowLeft, Download, CheckCircle } from 'lucide-react'
+import { Calendar, Clock, FileText, Upload, AlertCircle, ArrowLeft, Download, CheckCircle, FileText as FileIcon } from 'lucide-react'
 import { apiRequest } from '../utils/api'
+
+const PREVIEWABLE = {
+  '.pdf': 'pdf',
+  '.png': 'image', '.jpg': 'image', '.jpeg': 'image', '.webp': 'image', '.svg': 'image',
+  '.mp4': 'video', '.webm': 'video', '.mov': 'video',
+}
+
+const isPreviewable = (filename) => {
+  const ext = '.' + filename.split('.').pop().toLowerCase()
+  return PREVIEWABLE[ext]
+}
 
 const DetailTugasPage = () => {
   const { id } = useParams()
@@ -135,17 +146,43 @@ const DetailTugasPage = () => {
               <div className="mt-6 border-t border-gray-100 pt-6">
                 <h3 className="font-bold text-gray-800 mb-3">Lampiran Materi</h3>
                 <div className="space-y-2">
-                  {tugas.lampiran.map((file) => (
-                    <div key={file.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl border border-gray-100">
-                      <div className="flex items-center gap-2 truncate">
-                        <FileText className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                        <span className="text-sm text-gray-700 truncate">{file.namaFile}</span>
+                  {tugas.lampiran.map((file) => {
+                    const previewType = isPreviewable(file.namaFile)
+                    return (
+                      <div key={file.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl border border-gray-100">
+                        <div className="flex items-center gap-2 truncate">
+                          {previewType === 'image' ? (
+                            <span className="w-5 h-5 text-green-500">🖼</span>
+                          ) : previewType === 'video' ? (
+                            <span className="w-5 h-5 text-blue-500">🎬</span>
+                          ) : previewType === 'pdf' ? (
+                            <span className="w-5 h-5 text-red-500">📄</span>
+                          ) : (
+                            <FileIcon className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                          )}
+                          <span className="text-sm text-gray-700 truncate">{file.namaFile}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {previewType && (
+                            <button
+                              onClick={() => window.open(`/api/tugas/lampiran/${file.id}/view`, '_blank')}
+                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition flex-shrink-0"
+                              title="Preview"
+                            >
+                              <span className="text-sm font-medium">👁 Preview</span>
+                            </button>
+                          )}
+                          <a
+                            href={`/api/tugas/lampiran/${file.id}/download`}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition flex-shrink-0"
+                            download
+                          >
+                            <Download className="w-4 h-4" />
+                          </a>
+                        </div>
                       </div>
-                      <button className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition flex-shrink-0">
-                        <Download className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}
