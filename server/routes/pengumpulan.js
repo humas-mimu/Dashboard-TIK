@@ -93,6 +93,14 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
         data: { namaFile: path.basename(finalPath), path: finalPath, ukuran: file.size },
       })
       req.app.get('io').emit('pengumpulan-update', updated)
+      // Log aktivitas UPLOAD
+      await catatAktivitas({
+        siswaId: req.user.id,
+        tugasId: tugas.id,
+        jenis: JENIS_AKTIVITAS.UPLOAD,
+        deskripsi: `Mengunggah ulang file ${path.basename(finalPath)}`,
+        io: req.app.get('io')
+      })
       return res.json({ message: `File berhasil ${duplicateLabel}.`, data: updated })
     }
 
@@ -102,6 +110,14 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
       },
     })
     req.app.get('io').emit('pengumpulan-baru', pengumpulan)
+    // Log aktivitas UPLOAD
+    await catatAktivitas({
+      siswaId: req.user.id,
+      tugasId: tugas.id,
+      jenis: JENIS_AKTIVITAS.UPLOAD,
+      deskripsi: `Mengunggah file ${path.basename(finalPath)}`,
+      io: req.app.get('io')
+    })
     res.status(201).json({ message: 'Tugas berhasil diunggah.', data: pengumpulan })
   } catch (error) {
     res.status(500).json({ message: 'Gagal mengunggah tugas.', error: error.message })
